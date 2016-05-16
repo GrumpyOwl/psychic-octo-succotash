@@ -1,7 +1,7 @@
 
 local mt = setmetatable(_G, nil) --moduł no Globals
 redis.replicate_commands()
-MAX_NUMBER_OF_AGENTS = 10000
+MAX_NUMBER_OF_AGENTS = 100000
 MAX_NUMBER_OF_FRIENDS = 20 --liczba friendsów
 NUMBER_NEIGHBOUR = 20 --ilość sąsiadów
 NUMBER_OF_AGENTS_TO_UPDATE = MAX_NUMBER_OF_AGENTS * 0.1
@@ -31,9 +31,13 @@ end
 
 hmset = function(key, ...)
 	if next(arg) == nil then return "Nothing to set" end
-	local input = redis.call("hmset", key, unpack(arg))--A co jeśli 0??
+	local input = redis.call("hmset", key, unpack(arg))
 end
 
+hsetnx = function(key, ...)
+	if next(arg) == nil then return "Nothing to set" end
+	local input = redis.call("hsetnx", key, unpack(arg))
+end
 
 hmget = function(key, ...)
 	if next(arg) == nil then return {} end
@@ -177,13 +181,11 @@ everyoneMeetingNewFriends = function()
 	end
 end
 
--- local test = meatingNewFriends(2, 20 )
--- return test
 
+hincrby = function(key, field, value)
+	local bulk = redis.call("HINCRBY", key, field, value)
+end
 
---loc a l r = meating_new_friends(1, 20)
---return r
---todo poprawić toTable od zależności od wymiaru tablicy 
 
 globalPreferences = function()
 	
@@ -191,18 +193,40 @@ globalPreferences = function()
 	for i, k in pairs(allKeys) do 
 		redis.call("ZUNIONSTORE", "sumpreferences", 2, "sumpreferences", k)
 	end
-
-	local result = 0
-	local pref = zrange("sumpreferences", 0, -1, "WITHSCORES")
-	for  i, v in pairs(LIST_BRAND) do
-		--if true then return pref[v]/MAX_NUMBER_OF_AGENTS) end 
-		result =(pref[v])*1/MAX_NUMBER_OF_AGENTS
-		pref = zadd("sumpreferences", result, i)
+	
+	local result = nil
+	local sumPref = zrange("sumpreferences", 0, -1, "WITHSCORES")
+	for  i, v in pairs(sumPref) do
+		if true then return tonumber(v) end
+		result =tostring(tonumber(v)/MAX_NUMBER_OF_AGENTS)
+		sumPref = zadd("sumpreferences", "XX", result, i )
 	end
-	return pref
+	
+	return sumPref
 	
 end
 
-return globalPreferences()
+globalPreferences2 = function()
+	
+	local allKeys = redis.call("KEYS", "consumer:*:brand_preferences")
+	
+	local interval=1/NUMBER_OF_INTERVAL
+	for i, key in pairs(allKeys) do  	
+		local agentPref = zrange( key, 0, -1, "WITHSCORES")
+		
+		for brand, score in pairs(agentPref) do 
+			
+			for j=1, NUMBER_OF_INTERVAL do
+				
+				hsetnx(brand, j , 0)
+				if tonumber(score) <= interval * j and tonumber(score) >= (-1) * (interval * j)  then 
+					hincrby(brand, j, 1)
+				end
+			end
+		end
+	end
+	return redis.call("hgetall", "Dell")
+end	
+return globalPreferences2()
 
 
