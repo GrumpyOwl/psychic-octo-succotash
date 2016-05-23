@@ -1,5 +1,5 @@
-
 local mt = setmetatable(_G, nil) --moduł no Globals
+
 redis.replicate_commands()
 MAX_NUMBER_OF_AGENTS = 100000
 MAX_NUMBER_OF_FRIENDS = 20 --liczba friendsów
@@ -7,7 +7,8 @@ NUMBER_NEIGHBOUR = 20 --ilość sąsiadów
 NUMBER_OF_AGENTS_TO_UPDATE = MAX_NUMBER_OF_AGENTS * 0.1
 NUMBER_OF_FRIENDS_TO_UPDATE = 0.5 * MAX_NUMBER_OF_FRIENDS --
 NUMBER_OF_INTERVAL = 3
-LIST_BRAND = {"Dell", "Asus", "Lenovo"}
+
+
 toTable = function(table)
 	local result = {}
 	local key
@@ -23,21 +24,18 @@ toTable = function(table)
 end
 
 
-chancePreferences = function (valueAgent1, valueAgent2, influence)
-	local newValue = valueAgent1 + influence * (valueAgent2 - valueAgent1)
-	return newValue
-end
-
-
+--lua script to redis------------------------
 hmset = function(key, ...)
 	if next(arg) == nil then return "Nothing to set" end
 	local input = redis.call("hmset", key, unpack(arg))
 end
 
+
 hsetnx = function(key, ...)
 	if next(arg) == nil then return "Nothing to set" end
 	local input = redis.call("hsetnx", key, unpack(arg))
 end
+
 
 hmget = function(key, ...)
 	if next(arg) == nil then return {} end
@@ -71,29 +69,44 @@ zadd = function(key, ... )
 end
 
 
-del=function(key)
+del = function(key)
 	local bulk = redis.call( 'DEL', key)	
 	return "Removed."
 end
 
 
+hincrby = function(key, field, value)
+	local bulk = redis.call("HINCRBY", key, field, value)
+end
+
+
+georadiusbymember= function(aera, key, dist, unitOfLength ,... )
+	local bulk = redis.call( "GEORADIUSBYMEMBER", aera, key, dist, unitOfLength, unpack(arg))
+	local result ={}
+	result = toTable(bulk) 
+	return result
+end
+-------------------------------------------------
+
+
+getNewValueOfPreferences = function (valueAgent1, valueAgent2, influence)
+	local newValue = valueAgent1 + influence * (valueAgent2 - valueAgent1)
+	return newValue
+end
+
+
 updatePreferences = function ( idAgent1, idAgent2)
+	
 	--pobieramy dane o agentach
-	local agent1 = hmget( "consumer:"..idAgent1, "preferred_budget", "preferred_weight")--tak czy lepiej dodać do listy to co chcemy updatnąć 
-	local agent2 = hmget( "consumer:"..idAgent2, "preferred_budget", "preferred_weight")
 	local listFriendAgent1 = zrange( "consumer:"..idAgent1..":friends", 0, -1, "WITHSCORES")
 	local listBrandPreferencesAgent1 = zrange( "consumer:"..idAgent1..":brand_preferences", 0, -1, "WITHSCORES")
 	local listBrandPreferencesAgent2 = zrange( "consumer:"..idAgent2..":brand_preferences", 0, -1, "WITHSCORES")
 	local influence = listFriendAgent1[idAgent2..""]
 
-	--updatujemy wartości w hashach 
-	hmset(  "consumer:"..idAgent1, "preferred_budget", string.format( "%#.2f", chancePreferences( agent1["preferred_budget"], agent2["preferred_budget"], influence)),
-            "preferred_weight", string.format( "%#.2f", chancePreferences( agent1["preferred_weight"], agent2["preferred_weight"], influence))
-	)
-
 	--update sortet setów z friendsami
+	local newValue = getNewValueOfPreferences( score, listBrandPreferencesAgent2[brand], influence)
 	for brand, score in pairs(listBrandPreferencesAgent1) do
-		zadd( "consumer:"..idAgent1..":brand_preferences", chancePreferences( score, listBrandPreferencesAgent2[brand], influence), brand)
+		zadd( "consumer:"..idAgent1..":brand_preferences", newValue, brand)
 	end
 
 end
@@ -138,13 +151,6 @@ makeUpdatePreferences = function( numberOfAgentsToUpdate, maxNumberOfAgents)
 	return "OK"
 end
 
-georadiusbymember= function(aera, key, dist, unitOfLength ,... )
-	local bulk = redis.call( "GEORADIUSBYMEMBER", aera, key, dist, unitOfLength, unpack(arg))
-	local result ={}
-	result = toTable(bulk) 
-	return result
-end
-
 
 meetFriend = function(idAgent1, idAgent2)
 	zadd( "consumer:"..idAgent1..":friends",  math.random(), idAgent2.."")
@@ -152,7 +158,7 @@ meetFriend = function(idAgent1, idAgent2)
 end
 
 
-meatingNewFriends = function( idAgent, dist, numberOfNeighbours)
+meetNeighbours = function( idAgent, dist, numberOfNeighbours)
 	local listNeighbours = georadiusbymember("Polska", idAgent, dist, "km", "WITHDIST", "count", (numberOfNeighbours+1).."")--funkcja.....
 	local listFriends = zrange( "consumer:"..idAgent..":friends", 0, -1, "WITHSCORES")
 	
@@ -164,7 +170,7 @@ meatingNewFriends = function( idAgent, dist, numberOfNeighbours)
 	
 	listFriends = zrange( "consumer:"..idAgent..":friends", 0, -1, "WITHSCORES")
 	local counter = 0
-	redis.call("DEL", "consumer:"..idAgent..":friends")
+	del("DEL", "consumer:"..idAgent..":friends")
 	
 	for key, value in pairs(listFriends) do
 		counter = counter + 1  
@@ -174,59 +180,69 @@ meatingNewFriends = function( idAgent, dist, numberOfNeighbours)
 end
 
 
-everyoneMeetingNewFriends = function()
+everyoneMeetNeighbours = function()
 	
 	for i=1 , MAX_NUMBER_OF_AGENTS do 
-		meatingNewFriends(i, 20, NUMBER_NEIGHBOUR)
+		makeMatingNewFriends(i, 20, NUMBER_NEIGHBOUR)
 	end
 end
 
 
-hincrby = function(key, field, value)
-	local bulk = redis.call("HINCRBY", key, field, value)
-end
-
-
-globalPreferences = function()
+calculateAverageOfBrandPreferences = function()
+	local tSum = {}
 	
-	local allKeys = redis.call("KEYS", "consumer:*:brand_preferences")
-	for i, k in pairs(allKeys) do 
-		redis.call("ZUNIONSTORE", "sumpreferences", 2, "sumpreferences", k)
-	end
-	
-	local result = nil
-	local sumPref = zrange("sumpreferences", 0, -1, "WITHSCORES")
-	for  i, v in pairs(sumPref) do
-		if true then return tonumber(v) end
-		result =tostring(tonumber(v)/MAX_NUMBER_OF_AGENTS)
-		sumPref = zadd("sumpreferences", "XX", result, i )
-	end
-	
-	return sumPref
-	
-end
-
-globalPreferences2 = function()
-	
-	local allKeys = redis.call("KEYS", "consumer:*:brand_preferences")
-	
-	local interval=1/NUMBER_OF_INTERVAL
-	for i, key in pairs(allKeys) do  	
-		local agentPref = zrange( key, 0, -1, "WITHSCORES")
-		
-		for brand, score in pairs(agentPref) do 
-			
-			for j=1, NUMBER_OF_INTERVAL do
-				
-				hsetnx(brand, j , 0)
-				if tonumber(score) <= interval * j and tonumber(score) >= (-1) * (interval * j)  then 
-					hincrby(brand, j, 1)
-				end
+	--Sumowanie wartosci 
+	for i=1, MAX_NUMBER_OF_AGENTS do 
+		brandScores = zrange("consumer:"..i..":brand_preferences", 0, -1, "WITHSCORES")
+		for brand, score in pairs(brandScores) do
+			if tSum[brand] == nil then 
+				tSum[brand] = score
+			else
+				tSum[brand] = tSum[brand] + tonumber(score)
 			end
 		end
 	end
-	return redis.call("hgetall", "Dell")
+	
+	--Obliczanie średniej
+	for brand, score in pairs(tSum) do
+		tSum[brand] = score/MAX_NUMBER_OF_AGENTS
+	end 
+	
+	--Przypisywanie średnich do zmiennej
+	for brand, score in pairs(tSum) do
+		hmset("average:brand_preferences", brand, score)
+	end 
+end
+
+dataHistogram = function()
+	
+	local tCounter = {}
+	
+	for i=1, MAX_NUMBER_OF_AGENTS do
+		brandScores = zrange("consumer:"..i..":brand_preferences", 0, -1, "WITHSCORES")
+		
+		for brand, score in pairs(brandScores) do
+			number_interval = math.floor(score * NUMBER_OF_INTERVAL)
+			
+			if tCounter[brand] == nil then tCounter[brand] = {} end
+			
+			if tCounter[brand][number_interval] == nil then 
+				tCounter[brand][number_interval] = 1
+			else
+				tCounter[brand][number_interval] = tCounter[brand][number_interval] + 1
+			end
+		end
+	end
+	
+	for brand, interval in pairs(tCounter) do
+		for number, counter in pairs(interval) do 
+			hmset("counter:brand_preferences:"..brand, number, counter)
+		end
+	
+	end
 end	
-return globalPreferences2()
+
+
+return calculateAverageOfBrandPreferences()
 
 

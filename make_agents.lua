@@ -11,8 +11,6 @@ for i=1, MAX_NUMBER_OF_AGENTS do
 	redis.call(
 	"HMSET", "consumer:"..i,
 			"id", i,
-            "preferred_budget", math.random(500, 10000),
-            "preferred_weight", string.format( "%#.2f", (math.random()*(5-1))+1),
             "importance_weight", string.format( "%#.2f", math.random()),
             "importance_budget", string.format( "%#.2f", math.random()),
             "importance_brand", string.format( "%#.2f", math.random()),
@@ -33,7 +31,7 @@ for i=1, MAX_NUMBER_OF_AGENTS do
 	for j=1, MAX_NUMBER_OF_FRIENDS do 
 		redis.call(
 			"ZADD", "consumer:"..i..":friends",
-			   math.random(), math.random(1, MAX_NUMBER_OF_AGENTS)..""--dlaczego niektóre konwertuje a inne nie???
+			   math.random(), math.random(1, MAX_NUMBER_OF_AGENTS)..""
 		)
 	end
 end
