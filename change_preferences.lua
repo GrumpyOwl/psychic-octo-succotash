@@ -250,10 +250,6 @@ getDataToHistogram = function()
 	
 	end
 end	
-
-
-	
-	
 	
 	
 getDataToHistogram()
