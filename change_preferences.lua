@@ -4,10 +4,8 @@ redis.replicate_commands()
 MAX_NUMBER_OF_AGENTS = 100000
 MAX_NUMBER_OF_FRIENDS = 20 --liczba friendsów
 NUMBER_NEIGHBOUR = 20 --ilość sąsiadów
-NUMBER_OF_AGENTS_TO_UPDATE = MAX_NUMBER_OF_AGENTS * 0.1
-NUMBER_OF_FRIENDS_TO_UPDATE = 0.5 * MAX_NUMBER_OF_FRIENDS --
 NUMBER_OF_INTERVAL = 3
-PERCETAGE_BASE_POPULATION_WHICH_BUY_LAPTOP = 0.2
+
 
 KEY_VACTOR_WHO_BY = "consumer:who_buy"
 --":"<- musi być bo pierwszy jest index
@@ -191,7 +189,7 @@ end
 everyoneMeetNeighbours = function()
 	
 	for i=1 , MAX_NUMBER_OF_AGENTS do 
-		makeMatingNewFriends(i, 20, NUMBER_NEIGHBOUR)
+		meetNeighbours(i, 20, NUMBER_NEIGHBOUR)
 	end
 end
 
