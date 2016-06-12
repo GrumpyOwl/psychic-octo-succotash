@@ -1,15 +1,20 @@
-
+local mt = setmetatable(_G, nil)
 redis.replicate_commands()
 local MAX_NUMBER_OF_AGENTS=100000
-local MAX_NUMBER_OF_FRIENDS=20
 
-local time_start = redis.call("time")
+KEY_BRAND_PREFERENCES = ":consumer:brand_preferences"
+KEY_CONSUMER = ":consumer"
+KEY_CONSUMER_FRIENDS = ":consumer:friends"
+
+MAX_NUMBER_OF_FRIENDS=20
+time_start = redis.call("time")
+
 for i=1, MAX_NUMBER_OF_AGENTS do
 	local lat = (math.random()*(54.50-49))+49
 	local lon = (math.random()*(24.09-14.07))+14.07
 
 	redis.call(
-	"HMSET", "consumer:"..i,
+	"HMSET", tostring(i)..KEY_CONSUMER,
 			"id", i,
             "importance_weight", string.format( "%#.2f", math.random()),
             "importance_budget", string.format( "%#.2f", math.random()),
@@ -20,7 +25,7 @@ for i=1, MAX_NUMBER_OF_AGENTS do
 		)
 
 	redis.call(
-	"ZADD", "consumer:"..i..":brand_preferences",
+	"ZADD", tostring(i)..KEY_BRAND_PREFERENCES,
 			((math.random()*(1+1))-1), "Lenovo",
             ((math.random()*(1+1))-1), "Dell",
             ((math.random()*(1+1))-1), "Asus"
@@ -30,7 +35,7 @@ for i=1, MAX_NUMBER_OF_AGENTS do
 
 	for j=1, MAX_NUMBER_OF_FRIENDS do 
 		redis.call(
-			"ZADD", "consumer:"..i..":friends",
+			"ZADD", tostring(i)..KEY_CONSUMER_FRIENDS,
 			   math.random(), math.random(1, MAX_NUMBER_OF_AGENTS)..""
 		)
 	end
