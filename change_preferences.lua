@@ -9,7 +9,7 @@ NUMBER_AGENTS_TO_UPDATE = 0.1 *  MAX_NUMBER_OF_AGENTS
 
 
 KEY_VACTOR_WHO_BY = "consumer:who_buy"
---":"<- musi być bo pierwszy jest index
+
 KEY_CONSUMER = ":consumer"
 KEY_LAPTOP = ":laptop"
 KEY_COUNTER_BRAND = "counter:brand:"
@@ -272,10 +272,10 @@ getTimeUpdatePrefAndDatahist = function()
 	makeUpdatePreferences()
 	getDataToHistogram()
 	local time_end = redis.call("time")
-	return string.format( "%#.2f", (time_end[1]+time_end[2]/1000000)-(time_start[1]+time_start[2]/1000000))
+	return string.format( "%#.3f", (time_end[1]+time_end[2]/1000000)-(time_start[1]+time_start[2]/1000000))
 end	
 
-getTimeUpdatePrefAndDatahist()
+return getTimeUpdatePrefAndDatahist()
 	
 
 	

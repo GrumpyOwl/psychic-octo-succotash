@@ -1,0 +1,8 @@
+reset
+set yrange [13:25]
+set xrange [48:55]
+set output "map1.eps"
+plot 'location.dat' using 2:3
+
+set output
+set terminal X11

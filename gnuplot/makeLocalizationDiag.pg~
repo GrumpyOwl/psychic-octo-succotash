@@ -1,0 +1,7 @@
+reset
+set yrange [13:25]
+set xrange [48:55]
+set output "localization.eps"
+plot 'localization.dat' using 2:3
+set output
+set terminal X11

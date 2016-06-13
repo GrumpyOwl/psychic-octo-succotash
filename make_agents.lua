@@ -1,6 +1,6 @@
 local mt = setmetatable(_G, nil)
 redis.replicate_commands()
-local MAX_NUMBER_OF_AGENTS=100000
+local MAX_NUMBER_OF_AGENTS=1000000
 
 KEY_BRAND_PREFERENCES = ":consumer:brand_preferences"
 KEY_CONSUMER = ":consumer"
